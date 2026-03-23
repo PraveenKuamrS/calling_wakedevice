@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "609378078287",
+    "project_id": "flutter-call-test",
+    "storage_bucket": "flutter-call-test.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609378078287:android:81cac21c5ae5ed60fce43a",
+        "android_client_info": {
+          "package_name": "com.pk.callingapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUK9cJOf4H9QZ29wJhPdBKgJV7GLrg6bo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
