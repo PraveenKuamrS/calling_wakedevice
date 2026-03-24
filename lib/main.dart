@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -11,11 +10,10 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
-import 'package:record/record.dart';
-import 'package:flutter_sound/flutter_sound.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 // ── CONFIG ────────────────────────────────────────────────────────
-const String SERVER_IP = "192.168.1.177";
+const String SERVER_IP = "192.168.1.141";
 const String SERVER_URL = "http://$SERVER_IP:3000";
 const String WS_URL = "ws://$SERVER_IP:3000";
 
@@ -23,7 +21,8 @@ const String WS_URL = "ws://$SERVER_IP:3000";
 class UserInfo {
   final String name;
   final bool online;
-  UserInfo({required this.name, required this.online});
+  final bool inCall;
+  UserInfo({required this.name, required this.online, this.inCall = false});
 }
 
 // ── Background FCM handler ────────────────────────────────────────
@@ -78,26 +77,53 @@ class CallTestApp extends StatelessWidget {
     return MaterialApp(
       title: 'CallTest',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0d1117),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF4CAF50),
-          surface: Color(0xFF161b22),
+      theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF8F9FE),
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF6C5CE7),
+          secondary: Color(0xFF00B894),
+          surface: Colors.white,
+          background: Color(0xFFF8F9FE),
+          onPrimary: Colors.white,
+          onSecondary: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF2D3436),
+          centerTitle: true,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          color: Colors.white,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF161b22),
+          fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF30363d)),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE1E8ED)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF30363d)),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE1E8ED)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF6C5CE7), width: 2),
           ),
         ),
       ),
@@ -174,59 +200,127 @@ class _NameScreenState extends State<NameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.call, size: 64, color: Color(0xFF4CAF50)),
-              const SizedBox(height: 24),
-              const Text(
-                'CallTest',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter your name to get started',
-                style: TextStyle(color: Colors.white54),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _ctrl,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Your name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                onSubmitted: (_) => _save(),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.call,
+                      size: 50,
+                      color: Colors.white,
                     ),
                   ),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text(
-                          'Continue',
-                          style: TextStyle(fontSize: 16, color: Colors.white),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'CallTest',
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Enter your name to get started',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _ctrl,
+                          autofocus: true,
+                          textCapitalization: TextCapitalization.words,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF2D3436),
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Your name',
+                            labelStyle: TextStyle(color: Colors.grey.shade600),
+                            prefixIcon: Icon(
+                              Icons.person_outline,
+                              color: const Color(0xFF6C5CE7),
+                            ),
+                          ),
+                          onSubmitted: (_) => _save(),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _saving ? null : _save,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6C5CE7),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _saving
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Continue',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -252,6 +346,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Stream? _wsBroadcast;
   bool _registered = false;
   StreamSubscription? _wsSub;
+  bool _isInCallScreen = false;
 
   @override
   void initState() {
@@ -274,27 +369,48 @@ class _UsersScreenState extends State<UsersScreen> {
     // Listen for foreground FCM
     FirebaseMessaging.onMessage.listen((msg) {
       if (msg.data['type'] == 'incoming_call') {
-        _showIncomingCallUI(
-          callerName: msg.data['callerName'] ?? 'Unknown',
-          roomId: msg.data['roomId'] ?? '',
-        );
+        // Show full screen incoming call UI when app is open
+        final callerName = msg.data['callerName'] ?? 'Unknown';
+        final roomId = msg.data['roomId'] ?? '';
+
+        if (!_isInCallScreen && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => IncomingCallScreen(
+                callerName: callerName,
+                roomId: roomId,
+                onAccept: () => _acceptCall(roomId, callerName),
+                onDecline: () => _declineCall(roomId),
+              ),
+              fullscreenDialog: true,
+            ),
+          );
+        }
       }
     });
 
-    // CallKit events
+    // CallKit events (for when app is killed/background)
     FlutterCallkitIncoming.onEvent.listen((event) {
       if (event == null) return;
+      print('[CallKit] event: ${event.event}');
+
       if (event.event == Event.actionCallAccept) {
         final roomId = event.body['extra']?['roomId'] ?? event.body['id'];
         final callerName = event.body['extra']?['callerName'] ?? 'Unknown';
-        _goToInCall(
-          roomId: roomId.toString(),
-          peerName: callerName.toString(),
-          isCaller: false,
-        );
+
+        // Dismiss any incoming call screens
+        Navigator.popUntil(context, (route) => route.isFirst);
+
+        _acceptCall(roomId.toString(), callerName.toString());
       }
-      if (event.event == Event.actionCallDecline ||
-          event.event == Event.actionCallEnded) {
+
+      if (event.event == Event.actionCallDecline) {
+        final roomId = event.body['extra']?['roomId'] ?? event.body['id'];
+        _declineCall(roomId.toString());
+      }
+
+      if (event.event == Event.actionCallEnded) {
         FlutterCallkitIncoming.endAllCalls();
       }
     });
@@ -314,6 +430,21 @@ class _UsersScreenState extends State<UsersScreen> {
           print('[WS] ${msg['type']}');
           if (msg['type'] == 'registered') {
             setState(() => _registered = true);
+          }
+          if (msg['type'] == 'call_cancelled') {
+            // Caller cancelled the call - dismiss incoming call UI
+            FlutterCallkitIncoming.endAllCalls();
+            if (mounted && Navigator.canPop(context)) {
+              Navigator.popUntil(context, (route) => route.isFirst);
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Call cancelled'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
           }
         },
         onDone: () => print('[WS] closed'),
@@ -341,6 +472,21 @@ class _UsersScreenState extends State<UsersScreen> {
           print('[WS] ${msg['type']}');
           if (msg['type'] == 'registered') {
             setState(() => _registered = true);
+          }
+          if (msg['type'] == 'call_cancelled') {
+            // Caller cancelled the call - dismiss incoming call UI
+            FlutterCallkitIncoming.endAllCalls();
+            if (mounted && Navigator.canPop(context)) {
+              Navigator.popUntil(context, (route) => route.isFirst);
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Call cancelled'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
           }
         },
         onDone: () => print('[WS] closed'),
@@ -374,6 +520,48 @@ class _UsersScreenState extends State<UsersScreen> {
     }
   }
 
+  Future<void> _acceptCall(String roomId, String callerName) async {
+    // Cancel current subscription
+    await _wsSub?.cancel();
+    _isInCallScreen = true;
+
+    // Dismiss all CallKit notifications
+    await FlutterCallkitIncoming.endAllCalls();
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InCallScreen(
+          myName: widget.myName,
+          peerName: callerName,
+          roomId: roomId,
+          ws: _ws!,
+          wsStream: _wsBroadcast!,
+          isCaller: false,
+        ),
+      ),
+    );
+
+    // When returning from call
+    _isInCallScreen = false;
+    _reconnectWS();
+    _fetchUsers();
+  }
+
+  Future<void> _declineCall(String roomId) async {
+    // End CallKit notifications
+    await FlutterCallkitIncoming.endAllCalls();
+
+    // Send decline via WebSocket (peer will receive peer_left message)
+    _ws?.sink.add(jsonEncode({'type': 'leave', 'roomId': roomId}));
+
+    // Dismiss incoming call screen if present
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
   Future<void> _callUser(String targetName) async {
     final roomId = 'room_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -391,10 +579,11 @@ class _UsersScreenState extends State<UsersScreen> {
     if (res.statusCode == 200) {
       // Cancel current subscription to avoid "Stream already listened to" error
       await _wsSub?.cancel();
+      _isInCallScreen = true;
 
       // Go to calling screen (caller side)
       if (!mounted) return;
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => CallingScreen(
@@ -406,10 +595,21 @@ class _UsersScreenState extends State<UsersScreen> {
             onCallEnded: () => Navigator.pop(context),
           ),
         ),
-      ).then((_) {
-        // Reconnect WebSocket when returning to users screen
-        _reconnectWS();
-      });
+      );
+
+      // Reconnect WebSocket when returning to users screen
+      _isInCallScreen = false;
+      _reconnectWS();
+      _fetchUsers();
+    } else if (res.statusCode == 409) {
+      // User is busy
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$targetName is busy in another call'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     } else {
       final err = jsonDecode(res.body)['error'] ?? 'Failed';
       if (!mounted) return;
@@ -417,32 +617,6 @@ class _UsersScreenState extends State<UsersScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(err), backgroundColor: Colors.red));
     }
-  }
-
-  void _goToInCall({
-    required String roomId,
-    required String peerName,
-    required bool isCaller,
-  }) async {
-    // Cancel current subscription
-    await _wsSub?.cancel();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => InCallScreen(
-          myName: widget.myName,
-          peerName: peerName,
-          roomId: roomId,
-          ws: _ws!,
-          wsStream: _wsBroadcast!,
-          isCaller: isCaller,
-        ),
-      ),
-    ).then((_) {
-      // Reconnect WebSocket when returning to users screen
-      _reconnectWS();
-    });
   }
 
   Future<void> _logout() async {
@@ -475,56 +649,109 @@ class _UsersScreenState extends State<UsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161b22),
+        backgroundColor: Colors.white,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.myName, style: const TextStyle(fontSize: 16)),
             Text(
-              _registered ? 'online' : 'connecting...',
-              style: TextStyle(
-                fontSize: 11,
-                color: _registered ? Colors.greenAccent : Colors.orange,
+              widget.myName,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D3436),
               ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _registered
+                        ? const Color(0xFF00B894)
+                        : Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _registered ? 'Online' : 'Connecting...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _registered
+                        ? const Color(0xFF00B894)
+                        : Colors.orange,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _fetchUsers,
             tooltip: 'Refresh users',
+            color: const Color(0xFF6C5CE7),
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
             onPressed: _logout,
             tooltip: 'Change name',
+            color: const Color(0xFF6C5CE7),
           ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C5CE7)),
+            )
           : _users.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.people_outline,
-                    size: 64,
-                    color: Colors.white24,
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C5CE7).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.people_outline_rounded,
+                      size: 50,
+                      color: Color(0xFF6C5CE7),
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   const Text(
                     'No other users online',
-                    style: TextStyle(color: Colors.white54),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2D3436),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  TextButton.icon(
+                  Text(
+                    'Pull to refresh or try again',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
                     onPressed: _fetchUsers,
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C5CE7),
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -537,6 +764,7 @@ class _UsersScreenState extends State<UsersScreen> {
                 return _UserTile(
                   name: user.name,
                   isOnline: user.online,
+                  isInCall: user.inCall,
                   onCall: () => _callUser(user.name),
                 );
               },
@@ -548,10 +776,12 @@ class _UsersScreenState extends State<UsersScreen> {
 class _UserTile extends StatelessWidget {
   final String name;
   final bool isOnline;
+  final bool isInCall;
   final VoidCallback onCall;
   const _UserTile({
     required this.name,
     required this.isOnline,
+    this.isInCall = false,
     required this.onCall,
   });
 
@@ -560,64 +790,368 @@ class _UserTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF161b22),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF30363d)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Stack(
-          children: [
-            CircleAvatar(
-              backgroundColor: const Color(0xFF4CAF50).withOpacity(0.2),
-              child: Text(
-                name[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF4CAF50),
-                  fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onCall,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          name[0].toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: isOnline
+                              ? const Color(0xFF00B894)
+                              : Colors.grey.shade400,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: isOnline ? Colors.greenAccent : Colors.grey,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF161b22), width: 2),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF2D3436),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            isOnline ? Icons.circle : Icons.circle_outlined,
+                            size: 8,
+                            color: isOnline
+                                ? const Color(0xFF00B894)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              isOnline
+                                  ? (isInCall ? 'In another call' : 'Available')
+                                  : 'Offline',
+                              style: TextStyle(
+                                color: isOnline
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00B894), Color(0xFF00D2AA)],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00B894).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    onPressed: onCall,
+                    icon: const Icon(Icons.call_rounded, color: Colors.white),
+                    iconSize: 22,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text(
-          isOnline
-              ? 'online • tap to call'
-              : 'offline • will receive notification',
-          style: TextStyle(
-            color: isOnline ? Colors.white54 : Colors.white38,
-            fontSize: 11,
           ),
         ),
-        trailing: IconButton(
-          onPressed: onCall,
-          icon: const Icon(Icons.call, color: Color(0xFF4CAF50)),
-          style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFF4CAF50).withOpacity(0.15),
-          ),
-        ),
-        onTap: onCall,
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SCREEN 3 — Calling (caller waits for answer)
+// SCREEN 3 — Incoming Call (full screen for receiver when app is open)
+// ═══════════════════════════════════════════════════════════════════
+class IncomingCallScreen extends StatefulWidget {
+  final String callerName;
+  final String roomId;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  const IncomingCallScreen({
+    super.key,
+    required this.callerName,
+    required this.roomId,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  State<IncomingCallScreen> createState() => _IncomingCallScreenState();
+}
+
+class _IncomingCallScreenState extends State<IncomingCallScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+  }
+
+  void _accept() {
+    Navigator.pop(context);
+    widget.onAccept();
+  }
+
+  void _decline() {
+    Navigator.pop(context);
+    widget.onDecline();
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const Spacer(),
+              // Pulsing avatar
+              AnimatedBuilder(
+                animation: _pulse,
+                builder: (_, child) => Transform.scale(
+                  scale: 1.0 + _pulse.value * 0.1,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.2),
+                          blurRadius: 30,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.callerName[0].toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 64,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              Text(
+                widget.callerName,
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Incoming call...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Action buttons
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Decline button
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _decline,
+                              borderRadius: BorderRadius.circular(35),
+                              child: const Icon(
+                                Icons.call_end_rounded,
+                                size: 32,
+                                color: Color(0xFFFF6B6B),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Decline',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Accept button
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00B894), Color(0xFF00D2AA)],
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF00B894).withOpacity(0.5),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _accept,
+                              borderRadius: BorderRadius.circular(40),
+                              child: const Icon(
+                                Icons.call_rounded,
+                                size: 36,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Accept',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 60),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCREEN 4 — Calling (caller waits for answer)
 // ═══════════════════════════════════════════════════════════════════
 class CallingScreen extends StatefulWidget {
   final String myName;
@@ -677,18 +1211,43 @@ class _CallingScreenState extends State<CallingScreen>
           ),
         );
       }
-      if (msg['type'] == 'peer_left') {
+      if (msg['type'] == 'peer_left' || msg['type'] == 'call_declined') {
         _wsSub.cancel();
         if (!mounted) return;
         Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Call declined')));
+        if (msg['type'] == 'call_declined') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Call declined'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Call ended')));
+        }
       }
     });
   }
 
   void _cancelCall() {
+    // Notify backend to cancel the call and reset states
+    http
+        .post(
+          Uri.parse('$SERVER_URL/call-cancel'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'callerName': widget.myName,
+            'targetName': widget.peerName,
+            'roomId': widget.roomId,
+          }),
+        )
+        .then((_) {})
+        .catchError((e) {
+          print('[Cancel] error: $e');
+        });
+
     widget.ws.sink.add(jsonEncode({'type': 'leave', 'roomId': widget.roomId}));
     FlutterCallkitIncoming.endAllCalls();
     Navigator.pop(context);
@@ -704,49 +1263,121 @@ class _CallingScreenState extends State<CallingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0d1117),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (_, child) => Transform.scale(
-                scale: 1.0 + _pulse.value * 0.08,
-                child: child,
-              ),
-              child: CircleAvatar(
-                radius: 60,
-                backgroundColor: const Color(0xFF4CAF50).withOpacity(0.2),
-                child: Text(
-                  widget.peerName[0].toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 48,
-                    color: Color(0xFF4CAF50),
-                    fontWeight: FontWeight.bold,
+      body: SizedBox(
+        width: double.infinity,
+        height: double.infinity,
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                const Spacer(),
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, child) => Transform.scale(
+                    scale: 1.0 + _pulse.value * 0.08,
+                    child: Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.2),
+                            blurRadius: 30,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          widget.peerName[0].toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 56,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 32),
+                Text(
+                  widget.peerName,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Calling...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _cancelCall,
+                      borderRadius: BorderRadius.circular(35),
+                      child: const Icon(
+                        Icons.call_end_rounded,
+                        size: 32,
+                        color: Color(0xFFFF6B6B),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 60),
+              ],
             ),
-            const SizedBox(height: 24),
-            Text(
-              widget.peerName,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Calling...',
-              style: TextStyle(color: Colors.white54, fontSize: 16),
-            ),
-            const SizedBox(height: 60),
-            FloatingActionButton.large(
-              onPressed: _cancelCall,
-              backgroundColor: Colors.red,
-              child: const Icon(Icons.call_end, size: 36),
-            ),
-            const SizedBox(height: 12),
-            const Text('Cancel', style: TextStyle(color: Colors.white38)),
-          ],
+          ),
         ),
       ),
     );
@@ -754,7 +1385,7 @@ class _CallingScreenState extends State<CallingScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SCREEN 4 — In call (audio over WebSocket)
+// SCREEN 5 — In call (audio over WebSocket)
 // ═══════════════════════════════════════════════════════════════════
 class InCallScreen extends StatefulWidget {
   final String myName;
@@ -779,137 +1410,229 @@ class InCallScreen extends StatefulWidget {
 }
 
 class _InCallScreenState extends State<InCallScreen> {
-  final _recorder = AudioRecorder();
-  final _player = FlutterSoundPlayer();
+  RTCPeerConnection? _peerConnection;
+  MediaStream? _localStream;
   bool _muted = false;
   bool _connected = false;
   int _duration = 0;
   Timer? _timer;
   late StreamSubscription _wsSub;
-  StreamSubscription? _audioSub;
-  bool _playerInitialized = false;
+  bool _speakerOn = false;
 
   @override
   void initState() {
     super.initState();
-    _initPlayer();
-    _startCall();
+    _initWebRTC();
   }
 
-  Future<void> _initPlayer() async {
-    try {
-      await _player.openPlayer();
-      await _player.setSubscriptionDuration(const Duration(milliseconds: 10));
+  Future<void> _initWebRTC() async {
+    // Get microphone access
+    _localStream = await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': false,
+    });
 
-      // Start player in feed mode for real-time audio
-      await _player.startPlayerFromStream(
-        codec: Codec.pcm16,
-        numChannels: 1,
-        sampleRate: 16000,
-        bufferSize: 8192,
-        interleaved: false,
+    // Create peer connection
+    final config = {
+      'iceServers': [
+        {'urls': 'stun:stun.l.google.com:19302'},
+      ],
+    };
+
+    _peerConnection = await createPeerConnection(config);
+
+    // Add local audio track
+    _localStream!.getTracks().forEach((track) {
+      _peerConnection!.addTrack(track, _localStream!);
+    });
+
+    // Handle incoming remote audio
+    _peerConnection!.onTrack = (event) {
+      print('[WebRTC] Remote track received');
+      // Audio plays automatically through device speakers
+    };
+
+    // Handle ICE candidates
+    _peerConnection!.onIceCandidate = (candidate) {
+      widget.ws.sink.add(
+        jsonEncode({
+          'type': 'ice-candidate',
+          'target': widget.peerName,
+          'payload': {
+            'candidate': candidate.candidate,
+            'sdpMid': candidate.sdpMid,
+            'sdpMLineIndex': candidate.sdpMLineIndex,
+          },
+        }),
       );
+    };
 
-      _playerInitialized = true;
-      print('[AUDIO] Player initialized and ready for streaming');
-    } catch (e) {
-      print('[AUDIO] Player init error: $e');
-    }
+    _peerConnection!.onConnectionState = (state) {
+      print('[WebRTC] Connection state: $state');
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        setState(() => _connected = true);
+        _startTimer();
+      }
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        _endCall(peerLeft: true);
+      }
+    };
+
+    // Start the call
+    await _startCall();
   }
 
   Future<void> _startCall() async {
-    // Non-caller joins the room
-    if (!widget.isCaller) {
+    // Listen for signaling messages
+    _wsSub = widget.wsStream.listen((data) async {
+      try {
+        final msg = jsonDecode(data);
+
+        // Handle WebRTC signaling
+        if (msg['type'] == 'offer') {
+          await _handleOffer(msg['payload']);
+        } else if (msg['type'] == 'answer') {
+          await _handleAnswer(msg['payload']);
+        } else if (msg['type'] == 'ice-candidate') {
+          await _handleIceCandidate(msg['payload']);
+        } else if (msg['type'] == 'call-ended') {
+          _endCall(peerLeft: true, reason: msg['reason']);
+        } else if (msg['type'] == 'peer_left') {
+          _endCall(peerLeft: true);
+        }
+      } catch (e) {
+        print('[WS] Error: $e');
+      }
+    });
+
+    // Caller creates offer
+    if (widget.isCaller) {
+      final offer = await _peerConnection!.createOffer();
+      await _peerConnection!.setLocalDescription(offer);
+
+      widget.ws.sink.add(
+        jsonEncode({
+          'type': 'offer',
+          'target': widget.peerName,
+          'payload': {'sdp': offer.sdp, 'type': offer.type},
+        }),
+      );
+      print('[WebRTC] Offer sent');
+    } else {
+      // Receiver joins room and waits for offer
       widget.ws.sink.add(jsonEncode({'type': 'join', 'roomId': widget.roomId}));
     }
 
-    setState(() => _connected = true);
-    _startTimer();
-    _startRecording();
+    // Notify backend that call is accepted
+    await http.post(
+      Uri.parse('$SERVER_URL/call-accept'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'callerName': widget.isCaller ? widget.myName : widget.peerName,
+        'targetName': widget.isCaller ? widget.peerName : widget.myName,
+      }),
+    );
+  }
 
-    // Listen for incoming audio + peer events
-    _wsSub = widget.wsStream.listen((data) {
-      try {
-        final msg = jsonDecode(data);
-        if (msg['type'] == 'audio' && msg['payload'] != null) {
-          final bytes = base64Decode(msg['payload']);
-          _playAudio(bytes);
-        }
-        if (msg['type'] == 'peer_left') {
-          _endCall(peerLeft: true);
-        }
-      } catch (_) {}
-    });
+  Future<void> _handleOffer(Map<String, dynamic> payload) async {
+    final rtcDescription = RTCSessionDescription(
+      payload['sdp'],
+      payload['type'],
+    );
+    await _peerConnection!.setRemoteDescription(rtcDescription);
+
+    final answer = await _peerConnection!.createAnswer();
+    await _peerConnection!.setLocalDescription(answer);
+
+    widget.ws.sink.add(
+      jsonEncode({
+        'type': 'answer',
+        'target': widget.peerName,
+        'payload': {'sdp': answer.sdp, 'type': answer.type},
+      }),
+    );
+    print('[WebRTC] Answer sent');
+  }
+
+  Future<void> _handleAnswer(Map<String, dynamic> payload) async {
+    final rtcDescription = RTCSessionDescription(
+      payload['sdp'],
+      payload['type'],
+    );
+    await _peerConnection!.setRemoteDescription(rtcDescription);
+    print('[WebRTC] Answer received');
+  }
+
+  Future<void> _handleIceCandidate(Map<String, dynamic> payload) async {
+    final candidate = RTCIceCandidate(
+      payload['candidate'],
+      payload['sdpMid'],
+      payload['sdpMLineIndex'],
+    );
+    await _peerConnection!.addCandidate(candidate);
   }
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() => _duration++);
+      if (mounted) setState(() => _duration++);
     });
-  }
-
-  Future<void> _startRecording() async {
-    if (!await _recorder.hasPermission()) return;
-
-    final stream = await _recorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-    );
-
-    _audioSub = stream.listen((chunk) {
-      if (_muted || !_connected) return;
-      // Send raw audio bytes as base64 over WebSocket
-      final encoded = base64Encode(chunk);
-      widget.ws.sink.add(
-        jsonEncode({
-          'type': 'audio',
-          'roomId': widget.roomId,
-          'payload': encoded,
-        }),
-      );
-    });
-  }
-
-  Future<void> _playAudio(List<int> bytes) async {
-    // Play received PCM bytes in real-time
-    if (!_playerInitialized) return;
-    try {
-      final uint8List = Uint8List.fromList(bytes);
-      await _player.feedFromStream(uint8List);
-    } catch (e) {
-      print('[AUDIO] play error: $e');
-    }
   }
 
   void _toggleMute() {
-    setState(() => _muted = !_muted);
+    if (_localStream != null) {
+      final audioTrack = _localStream!.getAudioTracks().first;
+      audioTrack.enabled = !audioTrack.enabled;
+      setState(() => _muted = !audioTrack.enabled);
+    }
   }
 
-  void _endCall({bool peerLeft = false}) {
-    widget.ws.sink.add(jsonEncode({'type': 'leave', 'roomId': widget.roomId}));
+  void _toggleSpeaker() {
+    setState(() => _speakerOn = !_speakerOn);
+    Helper.setSpeakerphoneOn(_speakerOn);
+  }
+
+  void _endCall({bool peerLeft = false, String? reason}) {
+    // Send end-call to backend and notify peer
+    if (!peerLeft) {
+      widget.ws.sink.add(
+        jsonEncode({'type': 'end-call', 'roomId': widget.roomId}),
+      );
+    }
+
     FlutterCallkitIncoming.endAllCalls();
     _cleanup();
+
     if (mounted) {
       if (peerLeft) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Call ended by peer')));
+        final message = reason == 'peer_disconnected'
+            ? 'Call ended - peer disconnected'
+            : 'Call ended by peer';
+
+        // Pop back to users screen
+        Navigator.pop(context);
+
+        // Show message after navigation
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
+          }
+        });
+      } else {
+        Navigator.pop(context);
       }
-      Navigator.pop(context);
     }
   }
 
   void _cleanup() {
     _timer?.cancel();
     _wsSub.cancel();
-    _audioSub?.cancel();
-    _recorder.stop();
-    if (_playerInitialized) {
-      _player.closePlayer();
-    }
+    _localStream?.getTracks().forEach((track) => track.stop());
+    _localStream?.dispose();
+    _peerConnection?.close();
+    _peerConnection?.dispose();
   }
 
   @override
@@ -926,88 +1649,212 @@ class _InCallScreenState extends State<InCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0d1117),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(),
-            // Avatar
-            CircleAvatar(
-              radius: 64,
-              backgroundColor: const Color(0xFF4CAF50).withOpacity(0.15),
-              child: Text(
-                widget.peerName[0].toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 52,
-                  color: Color(0xFF4CAF50),
-                  fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // End call properly when back button is pressed
+          _endCall();
+        }
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF8F9FE), Colors.white],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Top section with avatar
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF6C5CE7).withOpacity(0.3),
+                                blurRadius: 30,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              widget.peerName[0].toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 52,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          widget.peerName,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2D3436),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _connected
+                                ? const Color(0xFF00B894).withOpacity(0.1)
+                                : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _connected ? _durationStr : 'Connecting...',
+                            style: TextStyle(
+                              color: _connected
+                                  ? const Color(0xFF00B894)
+                                  : Colors.grey.shade600,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              widget.peerName,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _connected ? _durationStr : 'Connecting...',
-              style: const TextStyle(color: Colors.white54, fontSize: 16),
-            ),
-            const Spacer(),
-            // Controls
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Mute
-                  _CallButton(
-                    icon: _muted ? Icons.mic_off : Icons.mic,
-                    label: _muted ? 'Unmute' : 'Mute',
-                    color: _muted ? Colors.orange : Colors.white24,
-                    onTap: _toggleMute,
+                // Controls section
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
                   ),
-                  // End call
-                  _CallButton(
-                    icon: Icons.call_end,
-                    label: 'End',
-                    color: Colors.red,
-                    size: 72,
-                    onTap: _endCall,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Mute button
+                      _ModernCallButton(
+                        icon: _muted
+                            ? Icons.mic_off_rounded
+                            : Icons.mic_rounded,
+                        label: _muted ? 'Unmute' : 'Mute',
+                        color: _muted
+                            ? const Color(0xFFFF6B6B)
+                            : Colors.grey.shade300,
+                        iconColor: _muted ? Colors.white : Colors.grey.shade700,
+                        onTap: _toggleMute,
+                      ),
+                      // End call button
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF6B6B),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFFFF6B6B,
+                                  ).withOpacity(0.4),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _endCall,
+                                borderRadius: BorderRadius.circular(35),
+                                child: const Icon(
+                                  Icons.call_end_rounded,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'End',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Speaker button
+                      _ModernCallButton(
+                        icon: _speakerOn
+                            ? Icons.volume_up_rounded
+                            : Icons.volume_down_rounded,
+                        label: _speakerOn ? 'Speaker' : 'Earpiece',
+                        color: _speakerOn
+                            ? const Color(0xFF6C5CE7)
+                            : Colors.grey.shade300,
+                        iconColor: _speakerOn
+                            ? Colors.white
+                            : Colors.grey.shade700,
+                        onTap: _toggleSpeaker,
+                      ),
+                    ],
                   ),
-                  // Speaker (placeholder)
-                  _CallButton(
-                    icon: Icons.volume_up,
-                    label: 'Speaker',
-                    color: Colors.white24,
-                    onTap: () {},
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 48),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _CallButton extends StatelessWidget {
+class _ModernCallButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final double size;
+  final Color iconColor;
   final VoidCallback onTap;
 
-  const _CallButton({
+  const _ModernCallButton({
     required this.icon,
     required this.label,
     required this.color,
+    required this.iconColor,
     required this.onTap,
-    this.size = 56,
   });
 
   @override
@@ -1015,19 +1862,39 @@ class _CallButton extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: Icon(icon, color: Colors.white, size: size * 0.45),
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color == Colors.grey.shade300
+                    ? Colors.black.withOpacity(0.05)
+                    : color.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(30),
+              child: Icon(icon, color: iconColor, size: 26),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Text(
           label,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
